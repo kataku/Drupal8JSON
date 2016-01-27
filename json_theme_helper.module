@@ -1,0 +1,25 @@
+<?php
+
+/**
+ * @file
+ * Contains json_theme_helper.module.
+ */
+
+use Drupal\Core\Routing\RouteMatchInterface;
+
+/**
+ * Implements hook_help().
+ */
+function json_theme_helper_help($route_name, RouteMatchInterface $route_match) {
+  switch ($route_name) {
+    // Main module help for the json_theme_helper module.
+    case 'help.page.json_theme_helper':
+      $output = '';
+      $output .= '<h3>' . t('About') . '</h3>';
+      $output .= '<p>' . t('This module uses a theme negotiator to map /view/ URLs to use the JSON theme over the default') . '</p>';
+      return $output;
+
+    default:
+  }
+}
+
