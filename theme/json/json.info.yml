@@ -1,0 +1,16 @@
+name: JSON
+type: theme
+description: A JSON theme for headless drupal
+core: 8.x
+# Defines the base theme
+base theme: bartik
+screenshot: json.png
+# Defines libraries group in which we can add css/js.
+# Regions
+regions:
+  header: Header
+  featured: Featured
+  content: Content
+  sidebar_first: First sidebar
+  sidebar_second: Second sidebar
+  footer: Footer

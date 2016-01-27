@@ -1,0 +1,14 @@
+{#
+/**
+ * @file
+ * Theme override of an image.
+ *
+ * Available variables:
+ * - attributes: HTML attributes for the img tag.
+ * - style_name: (optional) The name of the image style applied.
+ *
+ * @see template_preprocess_image()
+ *
+ * had to code 5 as attributes shows length 1 :(
+ */
+#}{% spaceless %}{ {% for key,value in attributes %}"{{ key }}":"{{ value }}" {% if loop.index < 5 %},{% endif %}{% endfor %} }{% endspaceless %}
