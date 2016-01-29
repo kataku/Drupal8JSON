@@ -2,5 +2,5 @@ name: JSON Theme Helper
 type: module
 description: This module uses a theme negotiator to map /view/ URLs to use the JSON theme over the default
 core: 8.x
-package: OTHER
+package: nvidia
 

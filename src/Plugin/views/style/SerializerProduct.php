@@ -112,10 +112,31 @@ class SerializerProduct extends StylePluginBase implements CacheablePluginInterf
     $form_state->setValue(array('style_options', 'formats'), array_filter($formats));
   }
 
+  private function add_array_recursive(&$array,$key,$addKey,$addValue=array()){    
+    foreach($array as $k => &$v){
+      if($k === $key){          
+          //if it matches
+          if (is_array($v)){            
+            //merge our array in if it's an array
+            $array[$k][$addKey] = $addValue;
+            return true;
+          }else{
+            //set the target key to our value otherwise
+            $array[$k] = array($addKey => $addValue);
+            return true;
+          }
+      }elseif(is_array($v)){                    
+        //the recursive bit        
+        $this->add_array_recursive($v,$key,$addKey,$addValue);        
+      }     
+    }
+    return true;
+  }
   /**
    * {@inheritdoc}
    */
   public function render() {
+	
     $rows = array();
     // If the Data Entity row plugin is used, this will be an array of entities
     // which will pass through Serializer to one of the registered Normalizers,
@@ -123,7 +144,6 @@ class SerializerProduct extends StylePluginBase implements CacheablePluginInterf
     // is used, $rows will not contain objects and will pass directly to the
     // Encoder.
 
-    $fields = array();
     foreach ($this->view->result as $row) {
       $tmpArrRender = $this->view->rowPlugin->render($row);
       
@@ -133,22 +153,52 @@ class SerializerProduct extends StylePluginBase implements CacheablePluginInterf
        * @var $imageData \Drupal\image\Plugin\Field\FieldType\ImageItem|\Drupal\Core\Entity\Plugin\DataType\EntityReference
        * @var $imageEntity \Drupal\Core\Entity\Plugin\DataType\EntityReference|\Drupal\file\Entity\File
        */
+      $fields = array();
+      $fieldGroup = array();      
       $entity = $row->_entity;
       
+      //could there be groups?
+       if(function_exists('field_group_load_field_group')){
+          $groupingData = field_group_info_groups($entity->getEntityTypeId(), $entity->bundle(), 'view', 'api_structure');        
+          
+          if (is_array($groupingData) && count($groupingData) > 0){
+              
+              foreach($groupingData as $groupName => $group){
+                $parent = $group->parent_name;
+                 if (empty($parent)){
+                    //if we're a base group add us to fields
+                    $fields[$groupName] = array();
+                 }else{
+                    //if we have a parent find it and add ourselves  
+                    $this->add_array_recursive($fields,$parent,$groupName);
+                 }
+                
+                //store group names
+                foreach($group->children as $childName){
+                  if (substr($childName,0,6)!=="group_"){
+                    $fieldGroup[$childName] = $groupName;                    
+                  }
+                }
+              }
+          }
+      }
+     
       foreach($entity->getFields() as $fieldID => $fieldData){
         $val = null;
-
+        
         // if of type image
         if($fieldData->getFieldDefinition()->getType() === "image"){
-          $val = array();
-          foreach($fieldData as $imageData){
-            $imageEntity = $imageData->getProperties(true)['entity']->getValue();
-            $val[] = array(
-              "alt"     =>  $imageData->getValue()['alt'],
-              "file"    =>  $imageEntity->getFilename(),
-              "type"    =>  $imageEntity->getMimeType(),
-              "size"    =>  $imageEntity->getSize()
-            );
+          if(array_key_exists($fieldID,$tmpArrRender)) {
+            $val = array();
+            foreach($fieldData as $imageData){
+              $imageEntity = $imageData->getProperties(true)['entity']->getValue();
+              $val[] = array(
+                "alt"     =>  $imageData->getValue()['alt'],
+                "file"    =>  str_replace(array("http:","https:"),"",file_create_url(file_build_uri($imageEntity->getFilename()))),
+                "type"    =>  $imageEntity->getMimeType(),
+                "size"    =>  $imageEntity->getSize()
+              );
+            }
           }
         }
 
@@ -157,36 +207,75 @@ class SerializerProduct extends StylePluginBase implements CacheablePluginInterf
           if(array_key_exists($fieldID,$tmpArrRender)) {
             $val = $tmpArrRender[$fieldID];
             $valDecode = json_decode($val, TRUE);
-            if ($valDecode !== NULL) {
-              $val = $valDecode;
+            
+            if ($fieldID == "field_technologies"){
+              $val = array();
+              foreach($fieldData->getValue() as $referencedTechnology){
+                $node = node_load($referencedTechnology['target_id']); 
+                $title = $node->getFields()['title']->getValue()[0]['value'];
+                if (array_key_exists(0,$node->getFields()['field_marketing_url']->getValue())){
+                  $url = $node->getFields()['field_marketing_url']->getValue()[0]['value'];
+                }else{
+                  $url = "";
+                }
+                $val[] = array(
+                  "title" => $title,
+                  "field_marketing_url" => $url
+                );
+              }
+            }else{
+              if ($valDecode !== NULL && is_array($valDecode)) {
+                $val = $valDecode;
+                array_walk_recursive($val, function(&$item){
+                 if (!is_array($item)){
+                   $item = htmlspecialchars_decode(html_entity_decode(urldecode($item),ENT_QUOTES));
+                 }}
+                );              
+              }
+            }
+          }
+        }
+        //make boolean a literal bool rather than string
+        if($fieldData->getFieldDefinition()->getType() === "boolean"){
+          if(array_key_exists($fieldID,$tmpArrRender)) {
+            $val = $tmpArrRender[$fieldID];
+            if($val){
+              $val = true;
+            } else {
+              $val = false;
             }
           }
         }
 
         //clean everything we get from json theme
         if ($val === null && array_key_exists($fieldID,$tmpArrRender)){
-          $decodedData = json_decode($tmpArrRender[$fieldID],true);
-
+          $decodedData = json_decode($tmpArrRender[$fieldID],true);          
           if ($decodedData !== null && is_array($decodedData)){
              array_walk_recursive($decodedData, function(&$item){
                if (!is_array($item)){
-                 $item = htmlspecialchars_decode(html_entity_decode($item,ENT_QUOTES));
+                 $item = htmlspecialchars_decode(html_entity_decode(urldecode($item),ENT_QUOTES));
                }}
              );
             $val = $decodedData;
           } else {
-            $val = htmlspecialchars_decode(html_entity_decode($tmpArrRender[$fieldID],ENT_QUOTES));
+            $val = htmlspecialchars_decode(html_entity_decode(urldecode($tmpArrRender[$fieldID]),ENT_QUOTES));
            }
         }
         
-        if ($val !== null){
+        if ($val !== null and !empty($val)){
           // Create leaf
-          $fields[$fieldID] = array(
+          $leaf = array(
             "type"    =>  $fieldData->getFieldDefinition()->getType(),
             "value"   =>  $val
-          );
-        }
-       
+            );    
+          
+          if (isset($fieldGroup[$fieldID])){
+            $groupName = $fieldGroup[$fieldID];              
+            $this->add_array_recursive($fields,$groupName,$fieldID,$leaf);
+          }else{            
+            $fields[$fieldID] = $leaf;            
+          }
+        }       
       }
       
       $tmpArr = array(
@@ -206,8 +295,7 @@ class SerializerProduct extends StylePluginBase implements CacheablePluginInterf
       $content_type = $this->displayHandler->getContentType();
     } else {
       $content_type = !empty($this->options['formats']) ? reset($this->options['formats']) : 'json';
-    }
-    
+    }    
     return $this->serializer->serialize($rows, $content_type);
   }
 

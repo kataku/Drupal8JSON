@@ -8,7 +8,7 @@
 namespace Drupal\json_theme_helper\Plugin\views\style;
 
 use Drupal\Core\Form\FormStateInterface;
-use Drupal\views\Plugin\CacheablePluginInterface;
+use Drupal\Core\Cache\CacheableDependencyInterface;
 use Drupal\views\ViewExecutable;
 use Drupal\views\Plugin\views\display\DisplayPluginBase;
 use Drupal\views\Plugin\views\style\StylePluginBase;
@@ -21,13 +21,13 @@ use Symfony\Component\Serializer\SerializerInterface;
  * @ingroup views_style_plugins
  *
  * @ViewsStyle(
- *   id = "serializerMod",
- *   title = @Translation("SerializerMod"),
+ *   id = "SerializerAvailableImages",
+ *   title = @Translation("SerializerAvailableImages"),
  *   help = @Translation("Serializes views row data using the Serializer component."),
  *   display_types = {"data"}
  * )
  */
-class SerializerMod extends StylePluginBase implements CacheablePluginInterface {
+class SerializerAvailableImages extends StylePluginBase implements CacheableDependencyInterface {
 
   /**
    * Overrides \Drupal\views\Plugin\views\style\StylePluginBase::$usesRowPlugin.
@@ -143,7 +143,6 @@ class SerializerMod extends StylePluginBase implements CacheablePluginInterface 
     }
     foreach ($rows as $rowIndex => $row){
        foreach($row as $fieldIndex => $field){
-       
        if (is_object($rows[$rowIndex][$fieldIndex])){
          $rows[$rowIndex][$fieldIndex] = $rows[$rowIndex][$fieldIndex]->__toString();
        }
@@ -153,7 +152,6 @@ class SerializerMod extends StylePluginBase implements CacheablePluginInterface 
        }
        
         $decodedData = json_decode($rows[$rowIndex][$fieldIndex],true);
-         
         if ($decodedData !== null && is_array($decodedData)){          
           array_walk_recursive($decodedData, function(&$item){
             if (!is_array($item)){
@@ -196,6 +194,15 @@ class SerializerMod extends StylePluginBase implements CacheablePluginInterface 
    */
   public function getCacheContexts() {
     return ['request_format'];
+  }
+
+
+  public function getCacheTags(){
+    return ['nvserializer_mod'];
+  }
+
+  public function getCacheMaxAge(){
+    return 3600;
   }
 
 }
